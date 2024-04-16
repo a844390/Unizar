@@ -1,0 +1,118 @@
+- Parte 1 ( Puesta en marcha de la máquina virtual )
+    
+    Dentro de VirtualBox, para importar la máquina as-base.ova, hay que entrar en menú
+    Archivo->Importar servicio virtualizado. Al importarla es muy importante indicar dónde
+    guardar la imagen de disco virtual (las demás opciones no hace falta cambiarlas).
+    
+    Una vez importada, se recomienda crear un clon en modo “Clonación enlazada” de la
+    máquina virtual para realizar la práctica y no trabajar nunca con la máquina original
+    
+- Parte 2 ( Script para la creación/borrado de usuarios local )
+    
+    1.- Hacer que no pidan la contraseña para usar sudo
+    #!/bin/bash
+#806643, Calvo Casado, Fernando, T, 3, B
+#844390, Chaves Muniesa, Pedro, T, 3, B
+
+crearUsrs() {
+    OldIfs=$IFS
+    IFS=,
+    # Proceso de creacion de usuarios
+    while read  usr passwd nombre resto
+    do
+        if [ ! "$usr" -o ! "$passwd" -o ! "$nombre" ]
+        then
+            echo "Campo invalido" 1>&2
+            exit 1
+        fi
+
+        cat /etc/passwd | grep "$usr" > /dev/null 2>&1
+        if [ $? -eq 0 ]
+        then
+            echo "El usuario $usr ya existe"
+        else
+            #Para cada usuario
+            # Crear
+            useradd -m -k /etc/skel -K UID_MIN=1815 -U -c "$nombre" "$usr"
+            
+            # Cambiar contraseña ( lee de entrada estandar chpasswd por lo que lo hacemos con una tubería)
+            echo "$usr:$passwd" | chpasswd
+            # Modificar útlimos detalles (caducidad, etc)
+            usermod "$usr" -f 30
+            echo "$nombre ha sido creado"
+        fi
+    done < $1
+    IFS=$OldIfs
+}
+
+eliminarUsrs() {
+    # Proceso de eliminacion de usuarios
+    [ ! -d "/extra" ] && mkdir /extra
+    [ ! -d "/extra/backup" ] && mkdir /extra/backup
+    # Crear /extra/backup si no existe
+
+    # Solo necesitas el nombre del usr para realizar el borrado
+    # Bucle que itera con cada linea del fichero
+    for usr in $(awk -F ',' '{print $1}' "$1")
+    do 
+        if [ ! "$usr" ]
+        then
+            echo "Campo invalido" 1>&2
+            exit 1
+        fi
+        cat /etc/passwd | grep "$usr" > /dev/null 2>&1
+
+        if [ $? -eq 0 ]
+        then
+            
+            # Realizar backup previo mediante tar y nombre <usr>.tar
+            # Guardar backup en /extra/backup
+            tar cvf /extra/backup/"$usr".tar $(cut -d: -f6 /etc/passwd | grep "$usr") > /dev/null 2>&1
+            # Si no se realiza bien el backup no se borrará el usuario
+            if [ $? -eq 0 ]
+            then
+                # Borrar directorio home. La opción -r elimina el directorio home
+                userdel -r "$usr" 2> /dev/null
+            fi
+        fi
+    done
+}
+
+# Comprobar numero de parametros
+if [ "$#" -ne 2 ] 
+then
+    echo "Numero incorrecto de parametros" 1>&2
+    
+    exit 1
+fi
+
+# Comprobar privilegios de administrador
+if [ "$EUID" != "0" ]
+then
+    echo "Este script necesita privilegios de administracion" 1>&2
+    
+    exit 1
+fi
+
+
+
+if [ "$1" = "-a" ]
+then
+    crearUsrs $2 # Supongo que sera el nombrefichero
+
+elif [ "$1" = "-s" ]
+then
+    eliminarUsrs $2
+else
+    echo "Opcion invalida" 1>&2
+    
+    exit 1
+fi
+
+    Se ha ejecutado el comando sudo visudo para modificar los ajustes de sudo. Se ha añadido la siguiente linea: as ALL=(ALL) NOPASSWD:ALL . Se guardan los cambios y ya podrías utilizar sudo sin contraseña.
+    
+    2.- Realizar el script de la práctica
+    
+    El script realizado para añadir y borrar usuarios es el siguiente. 
+    
+    
